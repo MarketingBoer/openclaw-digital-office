@@ -45,21 +45,43 @@ targeting of non-hook sessions.
 
 ---
 
-## 4. Cron maxConcurrentRuns Defaults to Unlimited
+## 4. Cron Jobs Are NOT Configured in openclaw.json
 
-**What happens:** A slow cron job hasn't finished when the next schedule
-triggers. Multiple instances run simultaneously, consuming double tokens
-and potentially corrupting shared workspace files.
+**What happens:** Adding `"crons"` or `"cron": { "jobs": {...} }` to
+`openclaw.json` causes a config validation error on startup:
+`Unrecognized key: "crons"` or `Unrecognized key: "jobs"`. OpenClaw
+refuses to load — all plugins fail, Telegram/Discord stop responding.
 
-**Why:** `maxConcurrentRuns` is not set by default — allowing unlimited
-concurrent runs of the same job.
+**Why:** Cron jobs in OpenClaw are NOT schema-driven config — they are
+managed as runtime state via the `openclaw cron` CLI. The config schema
+rejects any unknown top-level keys.
 
-**Fix:** Always set `maxConcurrentRuns` explicitly (2 is reasonable).
-For sequential-only jobs, set to 1.
+**Fix:** Never add cron config to `openclaw.json`. Use the CLI:
+```bash
+openclaw cron add \
+  --name "daily-status" \
+  --agent hq-mediadeboer \
+  --cron "0 8 * * 1-5" \
+  --message "Give a short daily status overview." \
+  --announce \
+  --channel telegram
+```
+Run `openclaw cron --help` for all options.
 
 ---
 
-## 5. n8n Credentials Must Stay in n8n — Never in OpenClaw
+## 5. Cron --deliver Flag is Deprecated
+
+**What happens:** `--deliver` flag is accepted but marked deprecated. The
+job may not deliver results as expected in newer OpenClaw versions.
+
+**Fix:** Use `--announce` instead of `--deliver`. Same behavior, current API.
+
+---
+
+## 6. n8n Credentials Must Stay in n8n — Never in OpenClaw
+
+## 6. n8n Credentials Must Stay in n8n — Never in OpenClaw
 
 **What happens:** API keys stored in OpenClaw env vars or workspace files
 are accessible to agents, logged in sessions, and potentially exfiltrable

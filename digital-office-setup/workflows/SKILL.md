@@ -147,15 +147,30 @@ Client request
 ```
 
 ### Cron Job Concept
-A **Cron Job** is a time-scheduled task configured in `openclaw.json`. It triggers an agent with a fixed prompt on a crontab schedule.
+A **Cron Job** is a time-scheduled task managed via the `openclaw cron` CLI.
+It triggers an agent with a fixed prompt on a crontab schedule.
 
-See `references/webhook-config.md` for the full cron config JSON block.
+> ⚠️ Cron jobs are **not** configured in `openclaw.json` — the schema
+> rejects any cron-related keys at the root level. Use the CLI only.
 
-### Key Settings
-- `schedule` — crontab expression (e.g., `"0 6 * * 1-5"` = weekdays at 06:00)
-- `maxConcurrentRuns` — prevents job overlap (default: unlimited — set explicitly)
-- `sessionRetention` — how long cron sessions are kept before cleanup
-- `deliver: true` + `channel: "telegram"` — sends result to a channel after completion
+```bash
+# Add a weekday morning status job
+openclaw cron add \
+  --name "daily-status" \
+  --agent hq-mediadeboer \
+  --cron "0 8 * * 1-5" \
+  --message "Give a short daily status overview." \
+  --announce \
+  --channel telegram
+```
+
+See `references/webhook-config.md` for all flags and management commands.
+
+### Key Flags
+- `--cron <expr>` — crontab expression (e.g., `"0 8 * * 1-5"` = weekdays 08:00)
+- `--every <duration>` — interval-based alternative (e.g., `1h`, `30m`)
+- `--announce` — deliver result to channel after completion (replaces deprecated `--deliver`)
+- `--session isolated` — fresh session per run (prevents context bleed between runs)
 
 ### Report Convention
 Store audit reports at: `reports/seo/{YYYY-MM-DD}-{project-name}.md` in the agent workspace.

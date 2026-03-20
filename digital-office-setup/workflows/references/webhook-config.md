@@ -117,29 +117,48 @@ Content-Type: application/json
 
 ## Cron Job Config (Audit Automation)
 
-```json
-{
-  "cron": {
-    "enabled": true,
-    "maxConcurrentRuns": 2,
-    "sessionRetention": "24h",
-    "jobs": {
-      "daily-seo-scan": {
-        "schedule": "0 6 * * 1-5",
-        "agent": "qa-auditor",
-        "prompt": "Run SEO audit for all active projects, save reports to reports/seo/",
-        "deliver": true,
-        "channel": "telegram"
-      }
-    }
-  }
-}
+> ⚠️ **Cron jobs are NOT configured in openclaw.json.** They are managed
+> exclusively via the `openclaw cron` CLI. JSON config blocks for cron
+> do NOT work — the schema rejects unknown keys like `"crons"` or `"cron.jobs"`.
+
+### Create a cron job
+
+```bash
+openclaw cron add \
+  --name "daily-hq-status" \
+  --agent hq-mediadeboer \
+  --cron "0 8 * * 1-5" \
+  --message "Give a short daily status overview of active workspaces and open actions." \
+  --announce \
+  --channel telegram \
+  --account hq \
+  --description "Weekday morning status report"
 ```
 
-**Fields:**
-- `schedule` — crontab expression (e.g., `"0 6 * * 1-5"` = weekdays at 06:00)
-- `maxConcurrentRuns` — max simultaneous runs of this job (prevents overlap)
-- `sessionRetention` — how long completed cron sessions are retained before pruning
-- `deliver` + `channel` — send result to a messaging channel after completion
+**Key flags:**
+- `--cron <expr>` — 5-field crontab expression (e.g., `"0 8 * * 1-5"` = weekdays 08:00)
+- `--every <duration>` — alternative to `--cron` (e.g., `1h`, `30m`)
+- `--at <when>` — one-shot run at ISO time or `+duration` (e.g., `+20m`)
+- `--agent <id>` — target agent ID
+- `--message <text>` — prompt sent to the agent
+- `--announce` — deliver result summary to a channel (replaces deprecated `--deliver`)
+- `--channel <name>` — delivery channel (`telegram`, `discord`, etc.)
+- `--account <id>` — channel account ID for multi-bot setups
+- `--session <target>` — `main` (shared) or `isolated` (fresh per run)
+- `--timeout-seconds <n>` — max run time before timeout
+- `--tz <iana>` — timezone for cron expression (e.g., `Europe/Amsterdam`)
+
+### Manage cron jobs
+
+```bash
+openclaw cron list                    # list all jobs
+openclaw cron run <id>                # run immediately (debug)
+openclaw cron runs <id>               # show run history
+openclaw cron disable <id>            # pause a job
+openclaw cron enable <id>             # resume a job
+openclaw cron edit <id> --cron "..."  # patch fields
+openclaw cron rm <id>                 # delete permanently
+openclaw cron status                  # scheduler status
+```
 
 **Report storage convention:** `reports/seo/{YYYY-MM-DD}-{project}.md` in the agent workspace.
