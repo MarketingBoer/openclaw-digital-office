@@ -118,6 +118,10 @@ Run this script after cloudflared starts. Saves manual steps.
 Requires: Cloudflare account (free) **AND** a domain managed in Cloudflare DNS.
 Without a domain, named tunnels are not possible — Cloudflare quick tunnels use
 `trycloudflare.com` but those are always ephemeral.
+
+**Already own a domain?** Moving DNS to Cloudflare is free and takes ~10 minutes.
+Your site stays on the same host — only DNS moves. You can add a subdomain like
+`webhook.mediadeboer.nl` without affecting the existing site.
 ```bash
 cloudflared tunnel login          # browser auth — one-time
 cloudflared tunnel create openclaw
