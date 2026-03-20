@@ -198,3 +198,41 @@ volumes:
 uid 1000 ownership. But OpenClaw's plugin trust model requires root ownership
 as proof that the plugin was installed by a privileged user, not injected by
 the gateway process itself.
+
+---
+
+## 8. gateway.mode=local Blocks CLI Cron Commands
+
+**What happens:** `openclaw cron add` fails with `gateway closed (1000)` or
+`gateway closed (1006)`. The CLI connects but the gateway immediately closes
+the WebSocket connection. `openclaw cron status` works (reads local file),
+but any write command fails.
+
+**Why:** In `gateway.mode: "local"`, the gateway does not expose a persistent
+WebSocket endpoint for CLI write operations. The CLI needs `mode: "remote"`
+with a configured `remote.url` to connect. But setting `mode: "remote"` without
+proper configuration causes `Gateway start blocked` and crashes the gateway.
+
+**Fix — workaround:** Write cron jobs directly to the jobs file while the
+gateway is stopped:
+1. `docker compose stop openclaw`
+2. Edit `/data/.openclaw/cron/jobs.json` (format: `{"version":1,"jobs":[...]}`)
+3. `docker compose start openclaw`
+
+The gateway reads `jobs.json` at startup and schedules all enabled jobs.
+Manual edits are only safe when the gateway is stopped.
+
+**Fix — proper (if CLI access needed):** Configure remote mode correctly:
+```json5
+{
+  gateway: {
+    mode: "remote",
+    remote: {
+      url: "ws://127.0.0.1:18789",
+      token: "your-token"
+    }
+  }
+}
+```
+Note: this requires the gateway to accept the connection, which may need
+additional network configuration in Docker environments.
