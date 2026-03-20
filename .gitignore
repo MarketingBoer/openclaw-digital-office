@@ -6,3 +6,8 @@ node_modules/
 *.bak
 blog/
 .claude-dev-helper/
+.plugin-config/
+.complexity-log.md
+.session-summary.md
+.openclaw-digital-office-project-structure.md
+reports/
