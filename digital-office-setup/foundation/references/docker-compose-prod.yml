@@ -1,0 +1,99 @@
+# Production-Hardened OpenClaw docker-compose
+# <!-- verified: 2026-03-20 against OpenClaw v2026.3.x -->
+# Usage: copy to server, create .env, chown -R 1000:1000 config dirs, docker compose up -d
+
+services:
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:2026.3.x}  # NEVER use :latest
+    restart: unless-stopped
+
+    user: "1000:1000"  # non-root — REQUIRED
+    security_opt:  # cross-ref: security/ skill
+      - no-new-privileges:true
+    read_only: true
+    cap_drop:
+      - ALL
+
+    shm_size: '2g'  # Chromium needs this (default 64MB crashes)
+    ports:  # ALWAYS loopback, NEVER 0.0.0.0
+      - "127.0.0.1:18789:18789"
+
+    tmpfs:  # writable scratch (root is read-only)
+      - /tmp:size=512m,mode=1777
+
+    environment:
+      OPENCLAW_GATEWAY_BIND: "127.0.0.1"  # loopback — mandatory for production
+      OPENCLAW_GATEWAY_PORT: "18789"
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}"  # strong random token, see .env
+      OPENCLAW_SANDBOX: "1"
+
+      OPENCLAW_BROWSER_RENDERER_PROCESS_LIMIT: "2"  # reduce to 1 on small VPS
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"  # provider keys in .env
+
+    volumes:  # named volumes only — NO Docker socket, NO entire home dir
+      - openclaw-config:/home/node/.openclaw
+      - openclaw-workspaces:/home/node/.openclaw/workspaces
+
+    networks:
+      - openclaw-net
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:18789/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    deploy:  # adjust limits for your VPS
+      resources:
+        limits:
+          cpus: '2'
+          memory: '2G'
+        reservations:
+          cpus: '0.25'
+          memory: '512M'
+
+  openclaw-cli:  # CLI companion — run with: docker compose --profile cli run openclaw-cli <cmd>
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:2026.3.x}
+    restart: "no"
+    user: "1000:1000"
+
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    cap_drop:
+      - ALL
+
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+
+    environment:
+      OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}"
+      OPENCLAW_GATEWAY_PORT: "18789"
+
+    volumes:
+      - openclaw-config:/home/node/.openclaw
+
+    networks:
+      - openclaw-net
+
+    entrypoint: ["openclaw"]
+    profiles: ["cli"]
+
+volumes:
+  openclaw-config:
+    name: openclaw-config
+  openclaw-workspaces:
+    name: openclaw-workspaces
+
+networks:
+  openclaw-net:
+    driver: bridge
+
+# .env file template (create alongside this file):
+# --------------------------------------------------
+# OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.3.x
+# OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32)
+# ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# --------------------------------------------------
