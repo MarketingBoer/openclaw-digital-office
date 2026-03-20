@@ -92,13 +92,47 @@ still point to the old URL.
 2. Update ChakraHQ: app.chakrahq.com → WhatsApp Setup → Pass-through webhook URL
 3. Update `webhookUrl` in openclaw.json → restart gateway
 
-**Fix — permanent:** Set up a named cloudflared tunnel with a stable subdomain:
+**Fix — permanent option A: ChakraHQ API auto-update (no new account needed)**
+
+ChakraHQ has a REST API. Create an API key in ChakraHQ → Settings → API Keys.
+Then write a post-restart script:
+```bash
+#!/bin/bash
+# Wait for tunnel to be ready
+sleep 5
+NEW_URL=$(curl -s http://127.0.0.1:20242/metrics | grep -oP 'userHostname="[^"]+' | grep -oP 'https://[^"]+')
+WEBHOOK="${NEW_URL}/webhook/whatsapp-cloud"
+
+# Update openclaw.json
+jq --arg url "$WEBHOOK" '.channels["whatsapp-cloud"].webhookUrl = $url' \
+  /data/.openclaw/openclaw.json > /tmp/oc.json && mv /tmp/oc.json /data/.openclaw/openclaw.json
+
+# Update ChakraHQ via API (get access token first with client_id + client_secret)
+# See: apidocs.chakrahq.com for current endpoint
+echo "Webhook updated to: $WEBHOOK"
+```
+Run this script after cloudflared starts. Saves manual steps.
+
+**Fix — permanent option B: Named cloudflared tunnel**
+
+Requires: Cloudflare account (free) **AND** a domain managed in Cloudflare DNS.
+Without a domain, named tunnels are not possible — Cloudflare quick tunnels use
+`trycloudflare.com` but those are always ephemeral.
 ```bash
 cloudflared tunnel login          # browser auth — one-time
 cloudflared tunnel create openclaw
 cloudflared tunnel route dns openclaw webhook.yourdomain.com
 ```
 Then configure the fixed URL in ChakraHQ once. No more manual updates.
+
+**Fix — permanent option C: Tailscale Funnel**
+
+No domain needed. Requires free Tailscale account. Gives stable `*.ts.net` URL.
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up        # browser login — one-time
+sudo tailscale funnel --bg 3100
+```
 
 ---
 
