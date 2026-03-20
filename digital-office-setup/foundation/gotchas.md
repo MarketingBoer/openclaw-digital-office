@@ -128,3 +128,73 @@ Without a reverse proxy providing these, auth and origin checks fail.
 
 **NEVER use these flags on a public-facing server.** Use Nginx + TLS + loopback instead.
 See security/ skill for reverse proxy setup guidance.
+
+---
+
+## 7. Gateway Lock File Stale After Crash
+
+**What happens:** After a container crash or OOM kill, the gateway refuses to
+start. Logs show `gateway already running` or lock acquisition failure.
+Restarting the container does not help — the same error repeats.
+
+**Why:** The gateway writes a lock file at `/tmp/openclaw-{uid}/gateway.*.lock`
+on startup. A clean shutdown removes it. A crash (OOM, SIGKILL, power loss)
+leaves the lock file behind. On restart, the gateway sees the stale lock and
+refuses to start a second instance.
+
+**Fix:**
+```bash
+docker exec <container> openclaw doctor --fix
+# Or manually:
+docker exec <container> find /tmp -name 'gateway.*.lock' -delete
+docker restart <container>
+```
+
+**Prevention:** Add a lock cleanup step to your entrypoint wrapper:
+```bash
+find /tmp -name 'gateway.*.lock' -delete 2>/dev/null || true
+```
+This is safe — the lock is only meaningful while the process is running.
+
+---
+
+## 8. Wrapper Entrypoint Pattern for Extension Ownership
+
+**What happens:** Foundation gotcha #4 describes the uid ownership cascade
+failure. The most reliable fix is a wrapper entrypoint that runs ownership
+corrections at every container start — before the gateway process launches.
+
+**Why:** Manual `docker exec chown` fixes the immediate problem but doesn't
+survive container recreation. Plugin reinstalls or image updates can reintroduce
+the ownership mismatch. A wrapper entrypoint is permanent.
+
+**Proven pattern:**
+```bash
+#!/bin/bash
+set -e
+
+# Fix data directory ownership for gateway process
+chown -R node:node /data
+
+# Clean stale lock files from previous crashes
+find /data -name '*.lock' -delete 2>/dev/null || true
+
+# Extensions must be root-owned (OpenClaw trust policy: uid=0 = trusted plugin code)
+chown -R root:root /data/.openclaw/extensions/ 2>/dev/null || true
+
+# Start the gateway as the non-root user
+cd /hostinger  # or /app depending on image
+exec runuser -u node -- node server.mjs
+```
+
+Mount it read-only in docker-compose.yml:
+```yaml
+entrypoint: ["/docker-entrypoint-wrapper.sh"]
+volumes:
+  - ./docker-entrypoint-wrapper.sh:/docker-entrypoint-wrapper.sh:ro
+```
+
+**Note:** The `chown root:root` on extensions is counterintuitive — you'd expect
+uid 1000 ownership. But OpenClaw's plugin trust model requires root ownership
+as proof that the plugin was installed by a privileged user, not injected by
+the gateway process itself.

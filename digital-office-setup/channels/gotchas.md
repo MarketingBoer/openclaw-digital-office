@@ -73,3 +73,50 @@ third-party plugin approach.
 **Fix:** Accept that this requires a fully custom webhook bridge (e.g., via
 n8n). There is no plug-and-play solution. Only attempt if Facebook Messenger
 is a hard business requirement.
+
+---
+
+## 6. Quick Tunnel URL Changes on Every Restart
+
+**What happens:** After restarting a cloudflared quick tunnel, the WhatsApp
+webhook stops receiving messages. ChakraHQ still shows the old URL. No error
+in OpenClaw logs — messages simply never arrive.
+
+**Why:** Cloudflared quick tunnels (`cloudflared tunnel --url`) generate a
+random subdomain on every start (e.g., `food-therapeutic-bottom-valid.trycloudflare.com`).
+When the tunnel restarts, the URL changes silently. ChakraHQ and openclaw.json
+still point to the old URL.
+
+**Fix — immediate (after each restart):**
+1. Get the new URL: `curl -s http://127.0.0.1:20242/metrics | grep userHostname`
+2. Update ChakraHQ: app.chakrahq.com → WhatsApp Setup → Pass-through webhook URL
+3. Update `webhookUrl` in openclaw.json → restart gateway
+
+**Fix — permanent:** Set up a named cloudflared tunnel with a stable subdomain:
+```bash
+cloudflared tunnel login          # browser auth — one-time
+cloudflared tunnel create openclaw
+cloudflared tunnel route dns openclaw webhook.yourdomain.com
+```
+Then configure the fixed URL in ChakraHQ once. No more manual updates.
+
+---
+
+## 7. Telegram Multi-Bot Polling Conflict
+
+**What happens:** After migrating OpenClaw to a new machine, Telegram messages
+arrive intermittently or not at all. Some messages reach the old instance,
+some reach the new one, some are lost entirely.
+
+**Why:** Telegram long-polling is exclusive — only one client can poll a bot
+token at a time. If two containers (e.g., VPS and local) poll the same bot
+token simultaneously, Telegram alternates between them unpredictably.
+
+**Fix:** Before starting OpenClaw on the new machine, STOP the container on the
+old machine:
+```bash
+ssh user@old-server 'docker compose -f /path/to/docker-compose.yml stop openclaw'
+```
+Only then start the local container. Never run two instances polling the same
+bot token. This applies per bot — if you have multiple bot accounts (default + hq),
+each token must be polled by exactly one instance.
