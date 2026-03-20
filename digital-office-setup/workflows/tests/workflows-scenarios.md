@@ -61,17 +61,18 @@ Claude explains the architecture (OpenClaw reasoning ↔ webhook ↔ n8n executi
 **Input:** "Set up an automated weekly SEO audit that runs every weekday morning."
 
 **Expected WITHOUT skill:**
-Claude gives generic cron advice but doesn't know OpenClaw's `cron` config structure, `maxConcurrentRuns`, `sessionRetention`, or the report storage convention. May use incorrect field names.
+Claude gives generic cron advice, may suggest putting cron config in openclaw.json (which crashes the gateway), doesn't know the CLI-based workflow, or uses incorrect field names.
 
 **Expected WITH skill:**
-Claude provides the exact cron config block with `"0 6 * * 1-5"` schedule, `agent: "qa-auditor"`, `prompt` field, `maxConcurrentRuns: 2` to prevent overlap, `sessionRetention: "24h"`, report path convention `reports/seo/{date}-{project}.md`, and notification via `deliver: true + channel: "telegram"`.
+Claude provides the `openclaw cron add` CLI command with `--cron "0 6 * * 1-5"`, `--agent qa-auditor`, `--message` prompt, `--announce` (not deprecated `--deliver`), `--channel telegram`, and `--tz` for timezone. Warns cron jobs are NOT in openclaw.json. Mentions report convention `reports/seo/{date}-{project}.md`. Notes `gateway.mode=local` blocks CLI — workaround: write to `/data/.openclaw/cron/jobs.json` while gateway is stopped.
 
 **Verification:**
-- Cron expression `"0 6 * * 1-5"` used correctly
-- `maxConcurrentRuns` included with explanation
-- `sessionRetention` specified
+- CLI command used (not JSON config)
+- Warning: cron NOT in openclaw.json
+- `--announce` used (not `--deliver`)
+- Cron expression correct
 - Report storage path follows convention
-- Notification delivery config included
+- gateway.mode=local workaround mentioned
 
 ---
 
