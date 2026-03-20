@@ -201,7 +201,7 @@ the gateway process itself.
 
 ---
 
-## 8. gateway.mode=local Blocks CLI Cron Commands
+## 9. gateway.mode=local Blocks CLI Cron Commands
 
 **What happens:** `openclaw cron add` fails with `gateway closed (1000)` or
 `gateway closed (1006)`. The CLI connects but the gateway immediately closes
